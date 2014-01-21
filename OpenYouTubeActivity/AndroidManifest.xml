@@ -19,6 +19,7 @@
     <application android:icon="@drawable/icon" android:label="@string/app_name">
         <activity android:name="com.aanchal.youtubemysongs.MainActivity"
                   android:label="@string/app_name"
+                  android:configChanges="orientation|screenSize"
                   android:windowSoftInputMode="stateHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

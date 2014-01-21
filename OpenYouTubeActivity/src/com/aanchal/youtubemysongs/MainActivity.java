@@ -2,6 +2,7 @@ package com.aanchal.youtubemysongs;
 
 import com.aanchal.youtubemysongs.Song;
 import com.aanchal.youtubemysongs.DeveloperKey;
+import com.aanchal.youtubemysongs.SongLogger;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -15,18 +16,21 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.provider.Settings.Secure;
 import android.text.Editable;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -69,6 +73,8 @@ public class MainActivity extends Activity {
     EditText inputSearch;
     MusicAdapter adapter;
     private ProgressDialog progressDialog; 
+    SongLogger logger;
+    static String duration;
 	
     
     private TextWatcher searchTextWatcher = new TextWatcher() {
@@ -87,6 +93,13 @@ public class MainActivity extends Activity {
                 adapter.getFilter().filter(s.toString());
             }
         };
+        
+        private class LoggerTask extends AsyncTask<Object, Void, Long> {
+        	protected Long doInBackground(Object... param) {
+	        	logger.resetAndSend();
+	        	return (long) 1;
+        	 }
+        }
     
     class Process extends AsyncTask<Object, Void, String> {
 		
@@ -107,6 +120,14 @@ public class MainActivity extends Activity {
 	            List<ResolveInfo> resolveInfo = getPackageManager().queryIntentActivities(intent, 0);
 	            return resolveInfo != null && !resolveInfo.isEmpty();
 	        }
+	        
+	        private int getDuration() {
+	        	try {
+	        		return Integer.parseInt(duration);
+	        	} catch (Exception e) {
+	        		return -1;
+	        	}
+	        }
 
 	        @Override
 	        protected void onPostExecute(String result)
@@ -121,8 +142,10 @@ public class MainActivity extends Activity {
              	         myself , DeveloperKey.DEVELOPER_KEY, result,0, true, false);
              		if (intent == null || !canResolveIntent(intent))
              			YouTubeInitializationResult.SERVICE_MISSING.getErrorDialog(myself, 2).show();
-             		else
+             		else {
+             			logger.videoStarted(result, querySong, getDuration());
              			startActivity(intent);
+             		}
 		        }    
 	        }
 	}
@@ -130,6 +153,8 @@ public class MainActivity extends Activity {
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
+    	  logger = new SongLogger(Secure.getString(this.getContentResolver(),
+                  Secure.ANDROID_ID) );
           super.onCreate(savedInstanceState);
           setContentView(R.layout.mainactivity);
           cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -142,8 +167,8 @@ public class MainActivity extends Activity {
     @Override
     public void onPause() {
         super.onPause();
-        AdView adview = (AdView) findViewById(R.id.adView);
-        adview.setVisibility(View.INVISIBLE);
+        Log.v("Logging", "Pause Called");
+        
 
         if(progressDialog != null)
             progressDialog.dismiss();
@@ -151,10 +176,35 @@ public class MainActivity extends Activity {
     }
     
     @Override
+    public void onStart() {
+    	super.onStart();
+    	Log.v("Logging", "Start Called");
+    }
+    
+    @Override
     public void onResume() {
     	super.onResume();
-    	  AdView adview = (AdView) findViewById(R.id.adView);
-          adview.setVisibility(View.VISIBLE);    	
+    	Log.v("Logging", "Resume Called");
+    	new LoggerTask().execute(null,null,null); 
+    	  
+    }
+    
+    @Override
+    public void onStop() {
+    	super.onStop();
+    	Log.v("Logging", "Stop Called");
+    }
+    
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        Log.v("Logging","Orientation changed");
+        /*// Checks the orientation of the screen
+        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            Toast.makeText(this, "landscape", Toast.LENGTH_SHORT).show();
+        } else if (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT){
+            Toast.makeText(this, "portrait", Toast.LENGTH_SHORT).show();
+        }*/
     }
     
     @SuppressWarnings("deprecation")
@@ -226,6 +276,7 @@ public class MainActivity extends Activity {
 					  JSONObject item0 = results[i].getJSONObject(indexes[i]);
 					  indexes[i]++;
 					  String ret = item0.getString("id");
+					  
 					  HttpClient lClient = new DefaultHttpClient();
 					  HttpGet lGetMethod = new HttpGet(YOUTUBE_VIDEO_INFORMATION_URL + ret);
 					  HttpResponse lResp = null;
@@ -233,8 +284,10 @@ public class MainActivity extends Activity {
 					  ByteArrayOutputStream lBOS = new ByteArrayOutputStream();
 					  lResp.getEntity().writeTo(lBOS);
 					  String lInfoStr = new String(lBOS.toString("UTF-8"));
-					  if (!lInfoStr.contains("fail"))
+					  if (!lInfoStr.contains("fail")) {
+						  duration = item0.getString("duration");
 						  return ret;
+					  }
 					  exhausted = false;
 					} catch (Exception e) {
 						// do nothing, continue
