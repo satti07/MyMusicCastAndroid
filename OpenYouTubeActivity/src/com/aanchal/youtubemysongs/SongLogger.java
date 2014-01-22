@@ -40,16 +40,18 @@ public class SongLogger {
 		if (startTime != -1) {
 			int elapsedTime = (int) ((System.currentTimeMillis() - startTime)/1000);
 			List<NameValuePair> params = new ArrayList<NameValuePair>();
-			params.add(new BasicNameValuePair("name", "Rahul"));
-			params.add(new BasicNameValuePair("fav_color", "yellow"));
+			params.add(new BasicNameValuePair("uid", androidId));
+			params.add(new BasicNameValuePair("title", userSong.title));
+			params.add(new BasicNameValuePair("album", userSong.album));
+			params.add(new BasicNameValuePair("artist", userSong.artist));
+			params.add(new BasicNameValuePair("videoid", youtubeId));
+			params.add(new BasicNameValuePair("duration", Integer.toString(songDuration)));
+			params.add(new BasicNameValuePair("watched", Integer.toString(elapsedTime)));
+			params.add(new BasicNameValuePair("version", Integer.toString(VERSION)));
 			
-			// getting JSON Object
-			// Note that create product url accepts POST method
-			JSONObject json = jsonParser.makeHttpRequest(DeveloperKey.DB_URL,
-					"POST", params);
-			Log.v("Logging",
-				   userSong.title + userSong.album + userSong.artist + Integer.toString(elapsedTime) + androidId);
-		}
+			jsonParser.makeHttpRequest(DeveloperKey.DB_URL,"POST", params);
+			
+			}
 		startTime = -1;
 	}
 

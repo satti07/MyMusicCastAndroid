@@ -10,6 +10,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
@@ -60,6 +61,7 @@ import com.google.ads.*;
 public class MainActivity extends Activity {
 
 	static final int MAX_QUERY_SONGS = 5;
+	private static final int SONG_CANDIDATES = 3;
 	private static final String YOUTUBE_VIDEO_INFORMATION_URL = "http://www.youtube.com/get_video_info?&video_id=";
 
 	ListView musiclist;
@@ -75,6 +77,7 @@ public class MainActivity extends Activity {
     private ProgressDialog progressDialog; 
     SongLogger logger;
     static String duration;
+    static Random randomGenerator = new Random();
 	
     
     private TextWatcher searchTextWatcher = new TextWatcher() {
@@ -167,7 +170,7 @@ public class MainActivity extends Activity {
     @Override
     public void onPause() {
         super.onPause();
-        Log.v("Logging", "Pause Called");
+        //Log.v("Logging", "Pause Called");
         
 
         if(progressDialog != null)
@@ -178,13 +181,13 @@ public class MainActivity extends Activity {
     @Override
     public void onStart() {
     	super.onStart();
-    	Log.v("Logging", "Start Called");
+    	//Log.v("Logging", "Start Called");
     }
     
     @Override
     public void onResume() {
     	super.onResume();
-    	Log.v("Logging", "Resume Called");
+    	//Log.v("Logging", "Resume Called");
     	new LoggerTask().execute(null,null,null); 
     	  
     }
@@ -192,13 +195,13 @@ public class MainActivity extends Activity {
     @Override
     public void onStop() {
     	super.onStop();
-    	Log.v("Logging", "Stop Called");
+    	//Log.v("Logging", "Stop Called");
     }
     
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        Log.v("Logging","Orientation changed");
+        //Log.v("Logging","Orientation changed");
         /*// Checks the orientation of the screen
         if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             Toast.makeText(this, "landscape", Toast.LENGTH_SHORT).show();
@@ -268,6 +271,9 @@ public class MainActivity extends Activity {
 			results[2] = getResults(song.getArtistAlbumQueryString());
 		int[] indexes = new int[3];
 		indexes[0] = indexes[1] = indexes[2] = 0;
+		String[] candidates = new String[SONG_CANDIDATES];
+		String[] durations = new String[SONG_CANDIDATES];
+		int counter = 0;
 		while(true) {
 			Boolean exhausted = true;
 			for(int i = 0; i < 3; ++i) 
@@ -285,8 +291,14 @@ public class MainActivity extends Activity {
 					  lResp.getEntity().writeTo(lBOS);
 					  String lInfoStr = new String(lBOS.toString("UTF-8"));
 					  if (!lInfoStr.contains("fail")) {
-						  duration = item0.getString("duration");
-						  return ret;
+						  durations[counter] = item0.getString("duration");
+						  candidates[counter] = ret;
+						  ++counter;
+						  if (counter == SONG_CANDIDATES) {
+							  int index = randomGenerator.nextInt(counter);
+								duration = durations[index];
+								return candidates[index];
+						  }
 					  }
 					  exhausted = false;
 					} catch (Exception e) {
@@ -296,6 +308,11 @@ public class MainActivity extends Activity {
 				}
 			if (exhausted)
 				break;
+		}
+		if (counter > 0) {
+			int index = randomGenerator.nextInt(counter);
+			duration = durations[index];
+			return candidates[index];
 		}
 		return null;
 	}
