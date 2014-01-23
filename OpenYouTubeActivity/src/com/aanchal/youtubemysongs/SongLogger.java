@@ -2,6 +2,7 @@ package com.aanchal.youtubemysongs;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import android.provider.Settings;
 import android.provider.Settings.Secure;
@@ -21,12 +22,14 @@ public class SongLogger {
 	int songDuration;
 	long startTime;
 	String androidId;
+	String lang;
 	static final int VERSION = 1;
 	JSONParser jsonParser = new JSONParser();
 	
 	public SongLogger(String android_id) {
 		this.startTime = -1;
 		this.androidId = android_id;
+		this.lang = Locale.getDefault().getLanguage();
 	}
 	
 	void videoStarted(String videoId, Song song, int duration) {
@@ -48,6 +51,7 @@ public class SongLogger {
 			params.add(new BasicNameValuePair("duration", Integer.toString(songDuration)));
 			params.add(new BasicNameValuePair("watched", Integer.toString(elapsedTime)));
 			params.add(new BasicNameValuePair("version", Integer.toString(VERSION)));
+			params.add(new BasicNameValuePair("lang", lang));
 			
 			jsonParser.makeHttpRequest(DeveloperKey.DB_URL,"POST", params);
 			
