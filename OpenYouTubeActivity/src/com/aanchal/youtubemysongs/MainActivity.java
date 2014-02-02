@@ -3,11 +3,14 @@ package com.aanchal.youtubemysongs;
 import com.aanchal.youtubemysongs.Song;
 import com.aanchal.youtubemysongs.DeveloperKey;
 import com.aanchal.youtubemysongs.SongLogger;
+import com.aanchal.youtubemysongs.AppRater;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -61,7 +64,7 @@ import com.google.ads.*;
 public class MainActivity extends Activity {
 
 	static final int MAX_QUERY_SONGS = 5;
-	private static final int SONG_CANDIDATES = 3;
+	private static final int SONG_CANDIDATES = 1;
 	private static final String YOUTUBE_VIDEO_INFORMATION_URL = "http://www.youtube.com/get_video_info?&video_id=";
 
 	ListView musiclist;
@@ -70,6 +73,7 @@ public class MainActivity extends Activity {
     List<Song> allSongs;
     List<Song> currentSongs;
     int count;
+    static int selectedIndex;
     private ConnectivityManager cm;
     Activity myself;
     EditText inputSearch;
@@ -77,7 +81,9 @@ public class MainActivity extends Activity {
     private ProgressDialog progressDialog; 
     SongLogger logger;
     static String duration;
+    long startTime = -1;
     static Random randomGenerator = new Random();
+    static AppRater appRate = new AppRater();
 	
     
     private TextWatcher searchTextWatcher = new TextWatcher() {
@@ -99,7 +105,7 @@ public class MainActivity extends Activity {
         
         private class LoggerTask extends AsyncTask<Object, Void, Long> {
         	protected Long doInBackground(Object... param) {
-	        	logger.resetAndSend();
+	        	logger.resetAndSend(MainActivity.this);
 	        	return (long) 1;
         	 }
         }
@@ -146,18 +152,39 @@ public class MainActivity extends Activity {
              		if (intent == null || !canResolveIntent(intent))
              			YouTubeInitializationResult.SERVICE_MISSING.getErrorDialog(myself, 2).show();
              		else {
-             			logger.videoStarted(result, querySong, getDuration());
+             			startTime = System.currentTimeMillis();
+             			logger.videoStarted(result, querySong, getDuration(), selectedIndex);
              			startActivity(intent);
              		}
 		        }    
 	        }
 	}
+    
+    public static String sha256(String base) {
+        try{
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(base.getBytes("UTF-8"));
+            StringBuffer hexString = new StringBuffer();
+
+            for (int i = 0; i < hash.length; i++) {
+                String hex = Integer.toHexString(0xff & hash[i]);
+                if(hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+
+            return hexString.toString();
+        } catch(Exception ex){
+           throw new RuntimeException(ex);
+        }
+    }
 
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
-    	  logger = new SongLogger(Secure.getString(this.getContentResolver(),
-                  Secure.ANDROID_ID) );
+    	logger =new SongLogger(sha256(Secure.getString(this.getContentResolver(),
+	                Secure.ANDROID_ID)));
+	    	
+		
           super.onCreate(savedInstanceState);
           setContentView(R.layout.mainactivity);
           cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -165,6 +192,7 @@ public class MainActivity extends Activity {
           inputSearch = (EditText) findViewById(R.id.inputSearch);
           inputSearch.addTextChangedListener(searchTextWatcher);
           init_phone_music_grid();    
+          startTime = -1;
       }
     
     @Override
@@ -189,7 +217,12 @@ public class MainActivity extends Activity {
     	super.onResume();
     	//Log.v("Logging", "Resume Called");
     	new LoggerTask().execute(null,null,null); 
-    	  
+    	if (startTime != -1) {
+    		int elapsedTime = (int) ((System.currentTimeMillis() - startTime)/1000);
+    		//Log.v("Logging", "Registering a click with time = " + Integer.toString(elapsedTime));
+    		AppRater.songClicked(this, elapsedTime > 20);  
+    	}
+    	startTime = -1;
     }
     
     @Override
@@ -295,9 +328,9 @@ public class MainActivity extends Activity {
 						  candidates[counter] = ret;
 						  ++counter;
 						  if (counter == SONG_CANDIDATES) {
-							  int index = randomGenerator.nextInt(counter);
-								duration = durations[index];
-								return candidates[index];
+							    selectedIndex = randomGenerator.nextInt(counter);
+								duration = durations[selectedIndex];
+								return candidates[selectedIndex];
 						  }
 					  }
 					  exhausted = false;
@@ -310,9 +343,9 @@ public class MainActivity extends Activity {
 				break;
 		}
 		if (counter > 0) {
-			int index = randomGenerator.nextInt(counter);
-			duration = durations[index];
-			return candidates[index];
+			selectedIndex = randomGenerator.nextInt(counter);
+			duration = durations[selectedIndex];
+			return candidates[selectedIndex];
 		}
 		return null;
 	}
