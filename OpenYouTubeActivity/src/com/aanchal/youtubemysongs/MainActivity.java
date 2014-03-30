@@ -246,7 +246,7 @@ public class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
 	private void init_phone_music_grid() {
           System.gc();
-          String[] proj = { MediaStore.Audio.Media._ID,MediaStore.Audio.Media.DISPLAY_NAME,MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.TITLE,MediaStore.Audio.Media.ALBUM };
+          String[] proj = { MediaStore.Audio.Media._ID,MediaStore.Audio.Media.DISPLAY_NAME,MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.TITLE,MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.DURATION };
           try {
           musiccursor = managedQuery(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,proj, null, null, null);
           // TODO: Check if musiccursor is null
@@ -254,12 +254,14 @@ public class MainActivity extends Activity {
           int titleCol = musiccursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
           int artistCol = musiccursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST);
           int albumCol = musiccursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
+          int durationCol = musiccursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
           allSongs = new ArrayList<Song>();
           currentSongs = new ArrayList<Song>();
           musiccursor.moveToFirst();
           for(int i = 0; i < count; ++i, musiccursor.moveToNext()) { 
-        	  allSongs.add(new Song(musiccursor.getString(titleCol), musiccursor.getString(albumCol), musiccursor.getString(artistCol)));
-           	  currentSongs.add(new Song(musiccursor.getString(titleCol), musiccursor.getString(albumCol), musiccursor.getString(artistCol)));
+        	  int duration = musiccursor.getInt(durationCol) / 1000;
+        	  allSongs.add(new Song(musiccursor.getString(titleCol), musiccursor.getString(albumCol), musiccursor.getString(artistCol), duration));
+           	  currentSongs.add(new Song(musiccursor.getString(titleCol), musiccursor.getString(albumCol), musiccursor.getString(artistCol), duration));
           }
           musiclist = (ListView) findViewById(R.id.PhoneMusicList);
           adapter = new MusicAdapter(getApplicationContext());
@@ -281,6 +283,7 @@ public class MainActivity extends Activity {
 		URLConnection jc = jsonURL.openConnection();
 		InputStream is = jc.getInputStream();
 		String jsonTxt = IOUtils.toString( is );
+		//Log.v("temp","Query:" + query + " Returned: " + jsonTxt);
 		JSONObject jj = new JSONObject(jsonTxt);
 		JSONObject jdata = jj.getJSONObject("data");
 		int totalItems = Math.min(MAX_QUERY_SONGS,jdata.getInt("totalItems"));
@@ -304,9 +307,8 @@ public class MainActivity extends Activity {
 			results[2] = getResults(song.getArtistAlbumQueryString());
 		int[] indexes = new int[3];
 		indexes[0] = indexes[1] = indexes[2] = 0;
-		String[] candidates = new String[SONG_CANDIDATES];
-		String[] durations = new String[SONG_CANDIDATES];
-		int counter = 0;
+		String best_duration = null;
+		String best_videoid = null;
 		while(true) {
 			Boolean exhausted = true;
 			for(int i = 0; i < 3; ++i) 
@@ -324,13 +326,13 @@ public class MainActivity extends Activity {
 					  lResp.getEntity().writeTo(lBOS);
 					  String lInfoStr = new String(lBOS.toString("UTF-8"));
 					  if (!lInfoStr.contains("fail")) {
-						  durations[counter] = item0.getString("duration");
-						  candidates[counter] = ret;
-						  ++counter;
-						  if (counter == SONG_CANDIDATES) {
-							    selectedIndex = randomGenerator.nextInt(counter);
-								duration = durations[selectedIndex];
-								return candidates[selectedIndex];
+						  best_duration = item0.getString("duration");
+						  best_videoid = ret;
+						  int video_length = Integer.parseInt(best_duration);
+						  Log.v("Length", "Video length = " + best_duration + " Song length = " + song.duration);
+						  if (Math.abs(video_length - song.duration) < 15) {
+							  duration = best_duration;
+							  return best_videoid;
 						  }
 					  }
 					  exhausted = false;
@@ -342,12 +344,8 @@ public class MainActivity extends Activity {
 			if (exhausted)
 				break;
 		}
-		if (counter > 0) {
-			selectedIndex = randomGenerator.nextInt(counter);
-			duration = durations[selectedIndex];
-			return candidates[selectedIndex];
-		}
-		return null;
+		duration = best_duration;
+		return best_videoid;
 	}
 
     private OnItemClickListener musicgridlistener = new OnItemClickListener() {
