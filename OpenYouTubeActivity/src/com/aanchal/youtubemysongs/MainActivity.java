@@ -278,22 +278,50 @@ public class MainActivity extends Activity {
 			return null;
 		try {
 		// TODO: Get short and medium duration only, exclude long videos
-		String url="http://gdata.youtube.com/feeds/api/videos?q="+query+"&max-results="+MAX_QUERY_SONGS+"&v=2&alt=jsonc";
+		String url = "https://www.googleapis.com/youtube/v3/search?part=id&videoSyndicated=true&type=video&q=" + query + "&max_results=" + MAX_QUERY_SONGS + "&key=" + DeveloperKey.YOUTUBE_API_KEY;
 		URL jsonURL = new URL(url);
 		URLConnection jc = jsonURL.openConnection();
 		InputStream is = jc.getInputStream();
 		String jsonTxt = IOUtils.toString( is );
 		//Log.v("temp","Query:" + query + " Returned: " + jsonTxt);
 		JSONObject jj = new JSONObject(jsonTxt);
-		JSONObject jdata = jj.getJSONObject("data");
-		int totalItems = Math.min(MAX_QUERY_SONGS,jdata.getInt("totalItems"));
-		JSONArray aitems = null;
-		if (totalItems > 0)
-			aitems = jdata.getJSONArray("items");
-		return aitems;
+		JSONArray ret = jj.getJSONArray("items");
+		if (ret.length() == 0)
+			return null;
+		return ret;
 		} catch (Exception e) {
+			//e.printStackTrace();
+			//Log.v("Duration",e.toString());
 			return null;
 		}
+	}
+	
+	private static boolean isNum(char ch) {
+		return Character.isDigit(ch);
+	}
+	
+	private static String getDurationinSeconds(String str) {
+		int ret = 0;
+		int index = str.length() - 1;
+		while(index > 0 && str.charAt(index) != 'S') --index;
+		if (str.charAt(index) == 'S') {
+			int temp = index - 1;
+			while(temp >=0 && isNum(str.charAt(temp))) --temp;
+			ret += Integer.parseInt(str.substring(temp + 1, index));
+		}
+		while(index > 0 && str.charAt(index) != 'M') --index;
+		if (str.charAt(index) == 'M') {
+			int temp = index - 1;
+			while(temp >=0 && isNum(str.charAt(temp))) --temp;
+			ret += 60*Integer.parseInt(str.substring(temp + 1, index));
+		}
+		while(index > 0 && str.charAt(index) != 'H') --index;
+		if (str.charAt(index) == 'H') {
+			int temp = index - 1;
+			while(temp >=0 && isNum(str.charAt(temp))) --temp;
+			ret += 3600*Integer.parseInt(str.substring(temp + 1, index));
+		}
+		return Integer.toString(ret);
 	}
 	
 	// given a song, retrieve the youtube id, returns null if no playable video is found
@@ -301,42 +329,58 @@ public class MainActivity extends Activity {
 		JSONArray[] results = new JSONArray[3];
 		results[0] = getResults(song.getAlbumQueryString());
 		results[1] = getResults(song.getArtistQueryString());
-		if (results[0] == null && results[1] == null)
+		if (results[0] == null && results[1] == null) {
 			results[2] = getResults(song.getTitleQueryString());
-		else
+			//Log.v("Duration","q1:" + song.getAlbumQueryString() + " q2: " + song.getArtistQueryString() + " q3:" + song.getTitleQueryString());
+		}
+		else {
 			results[2] = getResults(song.getArtistAlbumQueryString());
+			//Log.v("Duration","q1:" + song.getAlbumQueryString() + " q2: " + song.getArtistQueryString() + " q3:" + song.getArtistAlbumQueryString());
+		}
 		int[] indexes = new int[3];
 		indexes[0] = indexes[1] = indexes[2] = 0;
 		String best_duration = null;
 		String best_videoid = null;
+		//Log.v("Duration","Res1: " + results[0].length() + " Res2: " + results[1].length() + " Res3: " + results[2].length());
 		while(true) {
 			Boolean exhausted = true;
 			for(int i = 0; i < 3; ++i) 
 				if (results[i] != null && indexes[i] < results[i].length()) {
 					try {
+					  
 					  JSONObject item0 = results[i].getJSONObject(indexes[i]);
 					  indexes[i]++;
-					  String ret = item0.getString("id");
-					  
-					  HttpClient lClient = new DefaultHttpClient();
-					  HttpGet lGetMethod = new HttpGet(YOUTUBE_VIDEO_INFORMATION_URL + ret);
-					  HttpResponse lResp = null;
-					  lResp = lClient.execute(lGetMethod);
-					  ByteArrayOutputStream lBOS = new ByteArrayOutputStream();
-					  lResp.getEntity().writeTo(lBOS);
-					  String lInfoStr = new String(lBOS.toString("UTF-8"));
-					  if (!lInfoStr.contains("fail")) {
-						  best_duration = item0.getString("duration");
-						  best_videoid = ret;
-						  int video_length = Integer.parseInt(best_duration);
-						  Log.v("Length", "Video length = " + best_duration + " Song length = " + song.duration);
-						  if (Math.abs(video_length - song.duration) < 15) {
-							  duration = best_duration;
-							  return best_videoid;
+					  exhausted = false;
+					  String ret = item0.getJSONObject("id").getString("videoId");
+					  String url = "https://www.googleapis.com/youtube/v3/videos?id=" + ret +
+							  "&part=contentDetails" + "&key=" + DeveloperKey.YOUTUBE_API_KEY;
+					  URL jsonURL = new URL(url);
+					  URLConnection jc = jsonURL.openConnection();
+					  InputStream is = jc.getInputStream();
+					  String jsonTxt = IOUtils.toString( is );
+					  JSONObject jj = new JSONObject(jsonTxt);
+					  JSONArray items = jj.getJSONArray("items");
+					  if (items.length() != 1) {
+						  Log.e("Error","This should not happen");
+					  } else {
+						  String dur = items.getJSONObject(0).getJSONObject("contentDetails").getString("duration");
+						  String cur_duration = getDurationinSeconds(dur);
+						  String videoid = ret;
+						  int video_length = Integer.parseInt(cur_duration);
+						  if (Math.abs(video_length - song.duration) < 30) {
+							  //Log.v("Duration", "Video length = " + cur_duration + " Song length = " + song.duration);
+							  duration = cur_duration;
+							  //Log.v("Duration", "id:" + videoid);
+							  return videoid;
+						  } else if (best_videoid == null) {
+							  //Log.v("Duration", "Not matched Video length = " + cur_duration + " Song length = " + song.duration);
+							  best_videoid = videoid;
+							  best_duration = cur_duration;
 						  }
-					  }
+					  } 
 					  exhausted = false;
 					} catch (Exception e) {
+						//Log.v("Duration",e.toString());
 						// do nothing, continue
 					}
 					  
@@ -344,6 +388,8 @@ public class MainActivity extends Activity {
 			if (exhausted)
 				break;
 		}
+		//Log.v("Duration","Res1: " + indexes[0] + " Res2: " + indexes[1] + " Res3: " + indexes[2]);
+		
 		duration = best_duration;
 		return best_videoid;
 	}
